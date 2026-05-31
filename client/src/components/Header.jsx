@@ -1,7 +1,8 @@
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { FaUserCircle, FaCompass, FaBars, FaTimes, FaMountain } from 'react-icons/fa';
+import { FaUserCircle, FaCompass, FaBars, FaTimes, FaMountain, FaCommentDots } from 'react-icons/fa';
 import { useState, useEffect } from 'react';
+import NotificationBell from './NotificationBell';
 
 const Header = () => {
     const { user, logout, isAuthenticated } = useAuth();
@@ -59,9 +60,6 @@ const Header = () => {
                         <Link to="/packages" className={`font-medium transition ${!isTransparent ? 'text-gray-600 hover:text-red-600' : 'text-white/80 hover:text-white'}`}>
                             Packages
                         </Link>
-                        <Link to="/guides" className={`font-medium transition ${!isTransparent ? 'text-gray-600 hover:text-red-600' : 'text-white/80 hover:text-white'}`}>
-                            Find Guides
-                        </Link>
                         {isAuthenticated && (
                             <Link to="/dashboard" className={`font-medium transition ${!isTransparent ? 'text-gray-600 hover:text-red-600' : 'text-white/80 hover:text-white'}`}>
                                 Dashboard
@@ -69,6 +67,19 @@ const Header = () => {
                         )}
 
                         <div className={`h-6 w-px mx-2 transition-colors ${!isTransparent ? 'bg-gray-200' : 'bg-white/20'}`}></div>
+
+                        {isAuthenticated && (
+                            <div className="flex items-center gap-2">
+                                <Link 
+                                    to="/chat" 
+                                    className={`flex items-center justify-center w-10 h-10 rounded-full transition-all group ${!isTransparent ? 'bg-gray-50 border border-gray-100 hover:bg-red-50 hover:text-red-600' : 'bg-white/10 border border-white/20 hover:bg-white/20'}`}
+                                    title="Quick Chat"
+                                >
+                                    <FaCommentDots className={`${!isTransparent ? 'text-gray-600 group-hover:text-red-600' : 'text-white'}`} />
+                                </Link>
+                                <NotificationBell />
+                            </div>
+                        )}
 
                         {isAuthenticated ? (
                             <div className="flex items-center gap-6">
@@ -120,9 +131,6 @@ const Header = () => {
                         <Link to="/packages" className="text-gray-700 font-medium py-2" onClick={() => setIsMobileMenuOpen(false)}>
                             Packages
                         </Link>
-                        <Link to="/guides" className="text-gray-700 font-medium py-2" onClick={() => setIsMobileMenuOpen(false)}>
-                            Find Guides
-                        </Link>
                         {isAuthenticated && (
                             <Link to="/dashboard" className="text-gray-700 font-medium py-2" onClick={() => setIsMobileMenuOpen(false)}>
                                 Dashboard
@@ -138,6 +146,10 @@ const Header = () => {
                                         <FaUserCircle className="text-sky-500 text-xl" />
                                     )}
                                     <span className="text-gray-700 font-medium">{user?.name}</span>
+                                </Link>
+                                <Link to="/chat" className="flex items-center gap-3 py-2 text-gray-700 font-medium" onClick={() => setIsMobileMenuOpen(false)}>
+                                    <FaCommentDots className="text-red-600" />
+                                    <span>Messages</span>
                                 </Link>
                                 <button
                                     onClick={() => { handleLogout(); setIsMobileMenuOpen(false); }}

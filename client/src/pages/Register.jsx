@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { toast } from 'react-toastify';
 import { useGoogleLogin } from '@react-oauth/google';
 import { FcGoogle } from 'react-icons/fc';
-import { FaUserPlus, FaEnvelope, FaPhone, FaLock, FaUserTag } from 'react-icons/fa';
+import { FaUserPlus, FaEnvelope, FaPhone, FaLock, FaUserTag, FaUser, FaCheckCircle } from 'react-icons/fa';
 
 const Register = () => {
     const [formData, setFormData] = useState({
@@ -20,7 +20,7 @@ const Register = () => {
 
     useEffect(() => {
         if (isAuthenticated) {
-            navigate('/dashboard'); // Go direct to dashboard if authed
+            navigate('/dashboard');
         }
     }, [isAuthenticated, navigate]);
 
@@ -43,16 +43,30 @@ const Register = () => {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
+        
+        // Client-side validation
+        if (formData.password.length < 6) {
+            return toast.error('Password must be at least 6 characters long.');
+        }
+        
         if (formData.password !== formData.confirmPassword) {
             return toast.error('Passwords do not match. Please verify.');
         }
+
         try {
             const { confirmPassword: _, ...registerData } = formData;
             await register(registerData);
             toast.success('Account created! Welcome to the network.');
             navigate('/dashboard');
         } catch (error) {
-            toast.error(error.response?.data?.message || 'Registration failed. Please try again.');
+            // Handle validation errors array from server
+            if (error.response?.data?.errors && Array.isArray(error.response.data.errors)) {
+                error.response.data.errors.forEach(err => {
+                    toast.error(err.msg || 'Validation error');
+                });
+            } else {
+                toast.error(error.response?.data?.message || 'Registration failed. Please try again.');
+            }
         }
     };
 
@@ -62,71 +76,131 @@ const Register = () => {
             <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-red-100/50 rounded-full blur-[120px] -mr-64 -mt-64"></div>
             <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-slate-200/50 rounded-full blur-[120px] -ml-64 -mb-64"></div>
 
-            <div className="bg-white p-10 md:p-16 rounded-[2.5rem] shadow-2xl shadow-slate-200/50 w-full max-w-2xl border border-white relative z-10 transition-all hover:shadow-red-900/5">
-                <div className="text-center mb-12">
-                    <div className="inline-flex items-center justify-center w-16 h-16 bg-red-600 rounded-2xl text-white text-3xl mb-6 shadow-xl shadow-red-200 relative overflow-hidden group">
-                        <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-500"></div>
-                        <FaUserPlus className="relative z-10" />
+            <div className="bg-white p-10 md:p-16 rounded-[2.5rem] shadow-2xl shadow-slate-200/50 w-full max-w-2xl border border-white relative z-10">
+                <div className="text-center mb-10">
+                    <div className="inline-flex items-center justify-center w-16 h-16 bg-red-600 rounded-2xl text-white text-3xl mb-6 shadow-xl shadow-red-200">
+                        <FaUserPlus />
                     </div>
                     <h2 className="text-4xl font-black text-slate-900 tracking-tight uppercase mb-3">Create Account</h2>
-                    <p className="text-slate-500 font-medium italic">Join our platform.</p>
+                    <p className="text-slate-500 font-medium italic">Join our expert-led trekking platform.</p>
                 </div>
 
                 <form onSubmit={handleSubmit} className="space-y-6">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        {/* Name Field */}
                         <div className="space-y-2">
-                            <h3 className="text-2xl font-black text-slate-900 flex items-center gap-3 tracking-tight uppercase">
-                                <FaUser className="text-red-600" />
-                                Profile
-                            </h3>
+                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-2">Full Name</label>
                             <div className="relative group">
-                                <FaUserPlus className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-red-500 transition-colors" />
+                                <FaUser className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-red-500 transition-colors" />
                                 <input
                                     type="text"
                                     name="name"
                                     placeholder="Enter your name"
                                     value={formData.name}
                                     onChange={handleChange}
-                                    className="w-full h-14 pl-14 pr-6 bg-slate-50 border-2 border-slate-50 rounded-xl focus:border-red-500 focus:bg-white transition-all outline-none font-bold text-slate-700"
+                                    className="w-full h-14 pl-12 pr-6 bg-slate-50 border-2 border-slate-50 rounded-xl focus:border-slate-300 focus:bg-white transition-all outline-none font-bold text-slate-700"
                                     required
                                 />
                             </div>
                         </div>
+
+                        {/* Role Selection */}
                         <div className="space-y-2">
-                            <h3 className="text-2xl font-black text-slate-900 mb-8 flex items-center gap-3 tracking-tight uppercase">
-                                <FaLock className="text-red-600" />
-                                Security
-                            </h3>
+                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-2">I am a...</label>
                             <div className="relative group">
-                                <FaUserTag className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-red-500 transition-colors pointer-events-none" />
+                                <FaUserTag className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-red-500 transition-colors pointer-events-none" />
                                 <select
                                     name="role"
                                     value={formData.role}
                                     onChange={handleChange}
-                                    className="w-full h-14 pl-14 pr-10 bg-slate-50 border-2 border-slate-50 rounded-xl focus:border-red-500 focus:bg-white transition-all outline-none font-bold text-slate-700 appearance-none cursor-pointer"
+                                    className="w-full h-14 pl-12 pr-10 bg-slate-50 border-2 border-slate-50 rounded-xl focus:border-slate-300 focus:bg-white transition-all outline-none font-bold text-slate-700 appearance-none cursor-pointer"
                                 >
                                     <option value="tourist">Tourist</option>
                                     <option value="guide">Guide</option>
                                 </select>
                             </div>
                         </div>
+
+                        {/* Email Field */}
+                        <div className="space-y-2">
+                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-2">Email Address</label>
+                            <div className="relative group">
+                                <FaEnvelope className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-red-500 transition-colors" />
+                                <input
+                                    type="email"
+                                    name="email"
+                                    placeholder="abc@example.com"
+                                    value={formData.email}
+                                    onChange={handleChange}
+                                    className="w-full h-14 pl-12 pr-6 bg-slate-50 border-2 border-slate-50 rounded-xl focus:border-slate-300 focus:bg-white transition-all outline-none font-bold text-slate-700"
+                                    required
+                                />
+                            </div>
+                        </div>
+
+                        {/* Phone Field */}
+                        <div className="space-y-2">
+                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-2">Phone Number</label>
+                            <div className="relative group">
+                                <FaPhone className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-red-500 transition-colors" />
+                                <input
+                                    type="tel"
+                                    name="phone"
+                                    placeholder="98XXXXXXXX"
+                                    value={formData.phone}
+                                    onChange={handleChange}
+                                    className="w-full h-14 pl-12 pr-6 bg-slate-50 border-2 border-slate-50 rounded-xl focus:border-slate-300 focus:bg-white transition-all outline-none font-bold text-slate-700"
+                                    required
+                                />
+                            </div>
+                        </div>
+
+                        {/* Password Field */}
+                        <div className="space-y-2">
+                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-2">Password</label>
+                            <div className="relative group">
+                                <FaLock className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-red-500 transition-colors" />
+                                <input
+                                    type="password"
+                                    name="password"
+                                    placeholder="••••••••"
+                                    value={formData.password}
+                                    onChange={handleChange}
+                                    className="w-full h-14 pl-12 pr-6 bg-slate-50 border-2 border-slate-50 rounded-xl focus:border-slate-300 focus:bg-white transition-all outline-none font-bold text-slate-700"
+                                    required
+                                />
+                            </div>
+                        </div>
+
+                        {/* Confirm Password Field */}
+                        <div className="space-y-2">
+                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-2">Confirm Password</label>
+                            <div className="relative group">
+                                <FaCheckCircle className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-red-500 transition-colors" />
+                                <input
+                                    type="password"
+                                    name="confirmPassword"
+                                    placeholder="••••••••"
+                                    value={formData.confirmPassword}
+                                    onChange={handleChange}
+                                    className="w-full h-14 pl-12 pr-6 bg-slate-50 border-2 border-slate-50 rounded-xl focus:border-slate-300 focus:bg-white transition-all outline-none font-bold text-slate-700"
+                                    required
+                                />
+                            </div>
+                        </div>
                     </div>
 
-                    <button type="submit" disabled={uploading} className="w-full py-5 bg-red-600 text-white rounded-2xl font-black uppercase text-xs tracking-[0.2em] hover:bg-slate-900 transition-all shadow-xl shadow-red-100 flex items-center justify-center gap-4 active:scale-95 disabled:opacity-50">
-                        <FaSave /> Save Profile
+                    <button
+                        type="submit"
+                        className="w-full py-5 bg-red-600 text-white rounded-2xl font-black uppercase text-xs tracking-widest hover:bg-slate-900 transition-all shadow-xl shadow-red-100 flex items-center justify-center gap-4 active:scale-95"
+                    >
+                        Sign Up Now
                     </button>
                 </form>
 
-                <div className="flex items-center justify-center gap-2">
-                    <div className={`w-2 h-2 rounded-full ${user?.guideProfile?.governmentIdVerified ? 'bg-emerald-500' : 'bg-amber-500 animate-pulse'}`}></div>
-                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                        {user?.guideProfile?.governmentIdVerified ? 'Identity Verified' : 'Under Review'}
-                    </p>
-                </div>
-
-                <div className="my-10 flex items-center gap-4">
+                <div className="my-8 flex items-center gap-4">
                     <div className="flex-grow h-px bg-slate-100"></div>
-                    <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest">or</span>
+                    <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest">or continue with</span>
                     <div className="flex-grow h-px bg-slate-100"></div>
                 </div>
 
@@ -136,13 +210,13 @@ const Register = () => {
                     className="w-full h-14 flex items-center justify-center gap-4 bg-white border-2 border-slate-100 rounded-xl hover:bg-slate-50 hover:border-slate-200 transition-all shadow-sm active:scale-95 group"
                 >
                     <FcGoogle className="text-2xl group-hover:scale-110 transition-transform" />
-                    <span className="font-bold text-slate-700">Continue with Google</span>
+                    <span className="font-bold text-slate-700">Google Account</span>
                 </button>
 
-                <p className="mt-12 text-center text-sm font-bold text-slate-500">
+                <p className="mt-10 text-center text-sm font-bold text-slate-500">
                     Already registered? {' '}
                     <Link to="/login" className="text-red-600 hover:underline">
-                        Sign In
+                        Sign In Here
                     </Link>
                 </p>
             </div>
@@ -151,3 +225,4 @@ const Register = () => {
 };
 
 export default Register;
+

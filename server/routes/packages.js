@@ -1,7 +1,9 @@
 const express = require('express');
 const { body, validationResult } = require('express-validator');
 const Package = require('../models/Package');
+const User = require('../models/User');
 const { protect, authorize } = require('../middleware/auth');
+const { createNotification } = require('../utils/notify');
 
 const router = express.Router();
 
@@ -12,7 +14,7 @@ router.get('/', async (req, res) => {
   try {
     const { guide, destination, category, difficulty, minPrice, maxPrice, page = 1, limit = 10 } = req.query;
 
-    const query = { isActive: true };
+    const query = { isActive: true, status: 'approved' };
 
     if (guide) {
       query.guide = guide;
@@ -59,6 +61,21 @@ router.get('/', async (req, res) => {
   }
 });
 
+// @route   GET /api/packages/mine
+// @desc    Get all packages belonging to the logged-in guide (all statuses)
+// @access  Private (Guide only)
+router.get('/mine', protect, authorize('guide'), async (req, res) => {
+  try {
+    const packages = await Package.find({ guide: req.user._id, isActive: true })
+      .populate('reviewedBy', 'name')
+      .sort({ createdAt: -1 });
+
+    res.json({ success: true, packages });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Server error', error: error.message });
+  }
+});
+
 // @route   GET /api/packages/:id
 // @desc    Get single package
 // @access  Public
@@ -69,7 +86,7 @@ router.get('/:id', async (req, res) => {
       'name email phone avatar guideProfile'
     );
 
-    if (!package || !package.isActive) {
+    if (!package || !package.isActive || package.status !== 'approved') {
       return res.status(404).json({
         success: false,
         message: 'Package not found',
@@ -123,7 +140,13 @@ router.post(
     try {
       const packageData = {
         ...req.body,
-        guide: req.body.guide || req.user._id, // Allow admin to specify a guide ID
+        guide: req.body.guide || req.user._id,
+        // Admins bypass approval — their packages go live immediately
+        ...(req.user.role === 'admin' && {
+          status: 'approved',
+          reviewedBy: req.user._id,
+          reviewedAt: new Date(),
+        }),
       };
 
       const newPackage = await Package.create(packageData);
@@ -132,6 +155,21 @@ router.post(
         'guide',
         'name email avatar'
       );
+
+      // Notify all admins when a guide submits a package for review
+      if (req.user.role === 'guide') {
+        const admins = await User.find({ role: 'admin' });
+        for (const admin of admins) {
+          await createNotification(req.app, {
+            recipient: admin._id,
+            sender: req.user._id,
+            type: 'system',
+            title: 'New Package Awaiting Approval',
+            message: `${req.user.name} has submitted a new package "${newPackage.title}" for review and approval.`,
+            extraData: { packageId: newPackage._id }
+          });
+        }
+      }
 
       res.status(201).json({
         success: true,

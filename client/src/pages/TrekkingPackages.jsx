@@ -51,7 +51,7 @@ const TrekkingPackages = () => {
                                     className="w-full h-full object-cover"
                                 />
                                 <div className="absolute top-4 right-4 bg-red-600 text-white px-3 py-1 rounded-full text-sm font-semibold">
-                                    ${pkg.price}
+                                    Nrs. {pkg.price}
                                 </div>
                             </div>
                             <div className="p-6 flex-grow flex flex-col">

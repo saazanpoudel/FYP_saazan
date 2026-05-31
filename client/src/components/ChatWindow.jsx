@@ -5,7 +5,7 @@ import { toast } from 'react-toastify';
 import { useAuth } from '../context/AuthContext';
 import { FaPaperPlane } from 'react-icons/fa';
 
-const ChatWindow = ({ chatId, recipientName }) => {
+const ChatWindow = ({ chatId, recipientName, groupId, type = 'private' }) => {
     const { user } = useAuth();
     const [messages, setMessages] = useState([]);
     const [newMessage, setNewMessage] = useState('');
@@ -32,6 +32,9 @@ const ChatWindow = ({ chatId, recipientName }) => {
         socketRef.current = socket;
 
         socket.emit('join-chat', chatId);
+        if (type === 'group' && groupId) {
+            socket.emit('join-group', groupId);
+        }
 
         socket.on('receive-message', (data) => {
             if (data.chatId === chatId) {
@@ -78,7 +81,7 @@ const ChatWindow = ({ chatId, recipientName }) => {
                 <div className="flex items-center gap-4">
                     <div className="relative">
                         <div className="w-12 h-12 bg-slate-900 rounded-2xl flex items-center justify-center text-white font-black text-xs uppercase shadow-lg shadow-slate-200">
-                            {recipientName.charAt(0)}
+                            {(recipientName || 'Explorer').charAt(0)}
                         </div>
                         <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-emerald-500 border-4 border-white rounded-full"></div>
                     </div>
@@ -115,6 +118,11 @@ const ChatWindow = ({ chatId, recipientName }) => {
                             className={`flex ${isOwnMessage ? 'justify-end' : 'justify-start'}`}
                         >
                             <div className={`flex flex-col ${isOwnMessage ? 'items-end' : 'items-start'} max-w-[75%]`}>
+                                {type === 'group' && !isOwnMessage && (
+                                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1 px-1">
+                                        {msg.sender?.name || 'Explorer'}
+                                    </span>
+                                )}
                                 <div
                                     className={`px-5 py-3.5 rounded-2xl ${isOwnMessage
                                         ? 'bg-slate-900 text-white rounded-tr-none'

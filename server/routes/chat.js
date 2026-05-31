@@ -2,6 +2,7 @@ const express = require('express');
 const { body, validationResult } = require('express-validator');
 const { Chat, Message } = require('../models/Chat');
 const { protect } = require('../middleware/auth');
+const { createNotification } = require('../utils/notify');
 
 const router = express.Router();
 
@@ -51,41 +52,8 @@ router.post(
     try {
       const { participant, groupId, bookingId } = req.body;
 
-      if (bookingId) {
-        // Chat specifically for a booking
-        let chat = await Chat.findOne({ bookingId })
-          .populate('participants', 'name email avatar role')
-          .populate('bookingId', 'startDate endDate status package')
-          .populate({
-            path: 'bookingId',
-            populate: { path: 'package', select: 'title duration' }
-          });
-
-        if (!chat) {
-          const participants = [req.user._id, participant].sort();
-          chat = await Chat.create({
-            participants,
-            bookingId,
-            type: 'private'
-          });
-          
-          chat = await Chat.findById(chat._id)
-            .populate('participants', 'name email avatar role')
-            .populate('bookingId', 'startDate endDate status package')
-            .populate({
-              path: 'bookingId',
-              populate: { path: 'package', select: 'title duration' }
-            });
-        }
-
-        return res.json({
-          success: true,
-          chat
-        });
-      }
-
       if (groupId) {
-        // Group chat
+        // Group chat - same logic as before
         let chat = await Chat.findOne({ groupId, type: 'group' });
 
         if (!chat) {
@@ -94,38 +62,45 @@ router.post(
             type: 'group',
             groupId,
           });
+        } else {
+          if (!chat.participants.includes(req.user._id)) {
+            chat.participants.push(req.user._id);
+            await chat.save();
+          }
         }
 
         const populatedChat = await Chat.findById(chat._id)
           .populate('participants', 'name email avatar')
           .populate('groupId', 'name');
 
-        return res.json({
-          success: true,
-          chat: populatedChat,
-        });
+        return res.json({ success: true, chat: populatedChat });
       } else {
-        // Private chat
+        // Private chat (including booking-related)
+        // Ensure same two people always share the same chat session
         const participants = [req.user._id, participant].sort();
+        
         let chat = await Chat.findOne({
           participants: { $all: participants },
-          type: 'private',
+          type: 'private'
         });
 
         if (!chat) {
           chat = await Chat.create({
             participants,
             type: 'private',
+            bookingId: bookingId || null
           });
         }
 
         const populatedChat = await Chat.findById(chat._id)
-          .populate('participants', 'name email avatar role');
+          .populate('participants', 'name email avatar role')
+          .populate('bookingId', 'startDate endDate status package')
+          .populate({
+            path: 'bookingId',
+            populate: { path: 'package', select: 'title duration' }
+          });
 
-        res.json({
-          success: true,
-          chat: populatedChat,
-        });
+        return res.json({ success: true, chat: populatedChat });
       }
     } catch (error) {
       res.status(500).json({
@@ -270,12 +245,28 @@ router.post(
             message: populatedMessage,
             chatId: chat._id,
           });
+
+          // Optional: Notify other group members if wanted
+          // But usually we don't for every message in a group to avoid spam
         } else {
           // Direct or Booking chat
           io.to(`chat-${chat._id}`).emit('receive-message', {
             message: populatedMessage,
             chatId: chat._id,
           });
+
+          // Create persistent notification for the recipient
+          const recipient = chat.participants.find(p => p.toString() !== req.user._id.toString());
+          if (recipient) {
+            await createNotification(req.app, {
+                recipient,
+                sender: req.user._id,
+                type: 'message',
+                title: 'New Message',
+                message: `${req.user.name}: ${content.substring(0, 50)}${content.length > 50 ? '...' : ''}`,
+                extraData: { chatId: chat._id }
+            });
+          }
         }
       }
 

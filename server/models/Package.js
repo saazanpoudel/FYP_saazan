@@ -61,6 +61,21 @@ const packageSchema = new mongoose.Schema({
     type: Boolean,
     default: true,
   },
+  status: {
+    type: String,
+    enum: ['pending', 'approved', 'rejected'],
+    default: 'pending',
+  },
+  rejectionReason: {
+    type: String,
+  },
+  reviewedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+  },
+  reviewedAt: {
+    type: Date,
+  },
   createdAt: {
     type: Date,
     default: Date.now,

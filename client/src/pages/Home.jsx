@@ -10,25 +10,17 @@ import PackageCard from '../components/PackageCard';
 const Home = () => {
     const { isAuthenticated, user } = useAuth();
     const navigate = useNavigate();
-    const [recommendedGuides, setRecommendedGuides] = useState([]);
     const [recommendedPackages, setRecommendedPackages] = useState([]);
-    const [loadingGuides, setLoadingGuides] = useState(true);
     const [loadingPackages, setLoadingPackages] = useState(true);
 
     useEffect(() => {
         const fetchData = async () => {
             try {
-                const [guidesRes, packagesRes] = await Promise.all([
-                    axios.get('http://localhost:5000/api/guides/recommended'),
-                    axios.get('http://localhost:5000/api/packages?limit=3')
-                ]);
-                setRecommendedGuides(guidesRes.data.guides);
+                const packagesRes = await axios.get('http://localhost:5000/api/packages?limit=3');
                 setRecommendedPackages(packagesRes.data.packages);
-                setLoadingGuides(false);
                 setLoadingPackages(false);
             } catch (error) {
                 console.error('Error fetching data:', error);
-                setLoadingGuides(false);
                 setLoadingPackages(false);
             }
         };
@@ -90,7 +82,7 @@ const Home = () => {
                 <div className="container mx-auto px-6 relative z-10">
                     <div className="max-w-4xl mx-auto text-center">
                         <div className="inline-flex items-center gap-2 bg-white/10 backdrop-blur-md text-white px-5 py-2 rounded-full text-xs font-black uppercase tracking-widest mb-8 border border-white/20 animate-fade-in">
-                             <span className="w-2 h-2 bg-red-500 rounded-full animate-ping"></span> Leading Trekking Network in Nepal
+                              Leading Trekking Network in Nepal
                         </div>
                         <h1 className="text-5xl md:text-8xl font-black text-white mb-8 leading-[0.9] tracking-tighter drop-shadow-2xl">
                             EXPLORE THE <br/> <span className="text-red-500">HIMALAYAS</span>
@@ -106,21 +98,19 @@ const Home = () => {
                                 Start Expedition
                                 <FaArrowRight className="group-hover:translate-x-2 transition-transform" />
                             </Link>
-                            <button
-                                onClick={handleJoinAsGuide}
-                                className="w-full sm:w-auto bg-white/10 backdrop-blur-xl text-white border-2 border-white/30 px-12 py-6 rounded-2xl font-black uppercase tracking-widest text-xs hover:bg-white hover:text-slate-900 transition-all active:scale-95 shadow-xl"
-                            >
-                                Join as a Guide
-                            </button>
+                            {!isAuthenticated && (
+                                <button
+                                    onClick={handleJoinAsGuide}
+                                    className="w-full sm:w-auto bg-white/10 backdrop-blur-xl text-white border-2 border-white/30 px-12 py-6 rounded-2xl font-black uppercase tracking-widest text-xs hover:bg-white hover:text-slate-900 transition-all active:scale-95 shadow-xl"
+                                >
+                                    Join as a Guide
+                                </button>
+                            )}
                         </div>
                     </div>
                 </div>
 
-                {/* Scroll Indicator */}
-                <div className="absolute bottom-10 left-1/2 -translate-x-1/2 flex flex-col items-center gap-3 animate-bounce opacity-50">
-                    <div className="w-[1px] h-12 bg-gradient-to-b from-transparent via-white to-transparent"></div>
-                    <span className="text-[8px] font-black text-white uppercase tracking-[0.4em]">Scroll</span>
-                </div>
+
             </section>
 
             {/* Recommended Packages Section - NOW FIRST */}
@@ -155,37 +145,7 @@ const Home = () => {
                 </div>
             </section>
 
-            {/* Recommended Guides Section - NOW SECOND */}
-            <section className="py-24 bg-slate-50 relative">
-                <div className="container mx-auto px-6">
-                    <div className="flex flex-col md:flex-row justify-between items-end mb-16 gap-8">
-                        <div>
-                            <div className="inline-flex items-center gap-2 bg-amber-50 text-amber-700 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest mb-4 border border-amber-100">
-                                <FaStar /> Highly Recommended
-                            </div>
-                            <h2 className="text-4xl font-black text-slate-900 tracking-tight">Top Rated Professionals</h2>
-                            <p className="text-slate-500 font-medium italic mt-2">The most trusted guides with excellent feedback scores.</p>
-                        </div>
-                        <Link to="/guides" className="bg-white px-6 py-3 rounded-xl border border-slate-200 text-red-600 font-black uppercase tracking-widest text-[10px] flex items-center gap-3 hover:bg-red-600 hover:text-white transition-all shadow-sm">
-                            View All Guides <FaArrowRight />
-                        </Link>
-                    </div>
 
-                    {loadingGuides ? (
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                            {[...Array(3)].map((_, i) => (
-                                <div key={i} className="bg-white rounded-[2.5rem] h-96 animate-pulse"></div>
-                            ))}
-                        </div>
-                    ) : (
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                            {recommendedGuides.map((guide) => (
-                                <GuideCard key={guide._id} guide={guide} />
-                            ))}
-                        </div>
-                    )}
-                </div>
-            </section>
 
             {/* Features Section */}
             <section className="py-24 bg-white">
@@ -258,18 +218,15 @@ const Home = () => {
                             Start your Himalayan journey with the best local expertise and a secure system.
                         </p>
                         <div className="flex flex-col sm:flex-row items-center justify-center gap-6 relative z-10">
-                            <Link
-                                to="/register"
-                                className="w-full sm:w-auto bg-red-600 text-white px-10 py-4 rounded-2xl font-black uppercase tracking-widest text-[11px] hover:bg-slate-900 shadow-xl shadow-red-100 transition-all active:scale-95"
-                            >
-                                Create Account
-                            </Link>
-                            <Link
-                                to="/guides"
-                                className="w-full sm:w-auto text-slate-900 border-2 border-slate-100 px-10 py-4 rounded-2xl font-black uppercase tracking-widest text-[11px] hover:border-red-600 hover:text-red-600 transition-all active:scale-95"
-                            >
-                                View All Guides
-                            </Link>
+                            {!isAuthenticated && (
+                                <Link
+                                    to="/register"
+                                    className="w-full sm:w-auto bg-red-600 text-white px-10 py-4 rounded-2xl font-black uppercase tracking-widest text-[11px] hover:bg-slate-900 shadow-xl shadow-red-100 transition-all active:scale-95"
+                                >
+                                    Create Account
+                                </Link>
+                            )}
+
                         </div>
                     </div>
                 </div>

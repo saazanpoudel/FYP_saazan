@@ -4,7 +4,11 @@ const { body, validationResult } = require('express-validator');
 const User = require('../models/User');
 const Package = require('../models/Package');
 const Booking = require('../models/Booking');
+const Transaction = require('../models/Transaction');
+const Payout = require('../models/Payout');
 const { protect, authorize } = require('../middleware/auth');
+const { createNotification } = require('../utils/notify');
+const { recordTransaction } = require('../utils/finance');
 
 const router = express.Router();
 
@@ -107,6 +111,146 @@ router.get('/', async (req, res) => {
   }
 });
 
+// @route   GET /api/guides/dashboard
+// @desc    Get guide dashboard statistics
+// @access  Private (Guide only)
+router.get('/dashboard', protect, authorize('guide'), async (req, res) => {
+  try {
+    const guideId = new mongoose.Types.ObjectId(req.user._id);
+
+    // 1. Core Facet Aggregation for Financials
+    const financialSummary = await Transaction.aggregate([
+      { $match: { user: guideId } },
+      {
+        $facet: {
+          wallet: [
+            {
+              $group: {
+                _id: null,
+                balance: {
+                  $sum: {
+                    $cond: [{ $eq: ["$type", "credit"] }, "$amount", { $multiply: ["$amount", -1] }]
+                  }
+                },
+                gross: {
+                  $sum: { $cond: [{ $eq: ["$type", "credit"] }, "$amount", 0] }
+                }
+              }
+            }
+          ],
+          monthly: [
+            {
+              $match: {
+                type: 'credit',
+                createdAt: { $gte: new Date(new Date().setMonth(new Date().getMonth() - 6)) }
+              }
+            },
+            {
+              $group: {
+                _id: { month: { $month: "$createdAt" }, year: { $year: "$createdAt" } },
+                total: { $sum: "$amount" }
+              }
+            },
+            { $sort: { "_id.year": 1, "_id.month": 1 } }
+          ],
+          history: [
+            { $sort: { createdAt: -1 } },
+            { $limit: 10 },
+            {
+              $lookup: {
+                from: 'bookings',
+                localField: 'booking',
+                foreignField: '_id',
+                as: 'bookingDetails'
+              }
+            },
+            { $unwind: { path: "$bookingDetails", preserveNullAndEmptyArrays: true } },
+            {
+              $lookup: {
+                from: 'users',
+                localField: 'bookingDetails.tourist',
+                foreignField: '_id',
+                as: 'touristInfo'
+              }
+            },
+            { $unwind: { path: "$touristInfo", preserveNullAndEmptyArrays: true } },
+            {
+              $lookup: {
+                from: 'packages',
+                localField: 'bookingDetails.package',
+                foreignField: '_id',
+                as: 'packageInfo'
+              }
+            },
+            { $unwind: { path: "$packageInfo", preserveNullAndEmptyArrays: true } }
+          ]
+        }
+      }
+    ]);
+
+    // 2. Auxiliary Stats
+    const [bookingStats, potentialStats, upcomingTripsList] = await Promise.all([
+      Booking.aggregate([
+        { $match: { guide: guideId } },
+        {
+          $group: {
+            _id: null,
+            totalTrekkers: { $sum: { $cond: [{ $eq: ["$status", "completed"] }, "$numberOfPeople", 0] } },
+            upcomingTripsCount: { $sum: { $cond: [{ $in: ["$status", ["confirmed", "pending"]] }, 1, 0] } },
+            pendingRequests: { $sum: { $cond: [{ $eq: ["$status", "pending"] }, 1, 0] } }
+          }
+        }
+      ]),
+      Booking.aggregate([
+        { $match: { guide: guideId, status: 'confirmed', paymentStatus: 'pending' } },
+        { $group: { _id: null, total: { $sum: { $subtract: ["$totalAmount", { $ifNull: ["$commission", { $multiply: ["$totalAmount", 0.1] }] }] } } } }
+      ]),
+      Booking.find({ guide: guideId, status: 'confirmed' }).populate('tourist', 'name')
+    ]);
+
+    const financials = financialSummary && financialSummary[0] ? financialSummary[0] : {};
+    const wallet   = (financials.wallet && financials.wallet.length > 0) ? financials.wallet[0] : { balance: 0, gross: 0 };
+    const bStats   = (bookingStats && bookingStats.length > 0) ? bookingStats[0] : { totalTrekkers: 0, upcomingTripsCount: 0, pendingRequests: 0 };
+    const pStats   = (potentialStats && potentialStats.length > 0) ? potentialStats[0] : { total: 0 };
+
+    res.json({
+      success: true,
+      stats: {
+        grossEarnings:   wallet.gross || 0,
+        netEarnings:     wallet.balance || 0,
+        walletBalance:   wallet.balance || 0,
+        totalCommission: (wallet.gross || 0) - (wallet.balance || 0),
+        potentialEarnings: pStats.total || 0,
+        upcomingTrips:   bStats.upcomingTripsCount || 0,
+        pendingRequests: bStats.pendingRequests || 0,
+        totalTrekkers:   bStats.totalTrekkers || 0,
+        rating:          req.user?.guideProfile?.rating || 0,
+      },
+      upcomingTrips:      upcomingTripsList || [],
+      monthlyEarnings:    financials.monthly || [],
+      transactionHistory: financials.history || [],
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Fiscal infrastructure failed to aggregate.',
+      error: error.message,
+    });
+  }
+});
+
+// @route   GET /api/guides/payouts
+// @desc    Get guide's payout history
+// @access  Private (Guide only)
+router.get('/payouts', protect, authorize('guide'), async (req, res) => {
+  try {
+    const payouts = await Payout.find({ guide: req.user._id }).sort({ requestedAt: -1 });
+    res.json({ success: true, payouts });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
 // @route   GET /api/guides/:id
 // @desc    Get single guide profile
 // @access  Public
@@ -129,11 +273,18 @@ router.get('/:id', async (req, res) => {
       isActive: true,
     });
 
-    // Get guide's bookings count
+    // Get guide's completed bookings count
     const bookingsCount = await Booking.countDocuments({
       guide: guide._id,
       status: 'completed',
     });
+
+    // Total number of people guided across all completed bookings
+    const peopleStats = await Booking.aggregate([
+      { $match: { guide: guide._id, status: 'completed' } },
+      { $group: { _id: null, total: { $sum: '$numberOfPeople' } } },
+    ]);
+    const totalPeopleLed = peopleStats[0]?.total || 0;
 
     res.json({
       success: true,
@@ -141,6 +292,7 @@ router.get('/:id', async (req, res) => {
         ...guide.toObject(),
         packages,
         bookingsCount,
+        totalPeopleLed,
       },
     });
   } catch (error) {
@@ -152,115 +304,6 @@ router.get('/:id', async (req, res) => {
   }
 });
 
-// @route   GET /api/guides/dashboard
-// @desc    Get guide dashboard statistics
-// @access  Private (Guide only)
-router.get('/dashboard', protect, authorize('guide'), async (req, res) => {
-  try {
-    const guideId = new mongoose.Types.ObjectId(req.user._id);
-
-    const pendingRequests = await Booking.countDocuments({
-      guide: guideId,
-      status: 'pending'
-    });
-
-    const upcomingTrips = await Booking.find({
-      guide: guideId,
-      status: { $in: ['confirmed', 'pending'] },
-      startDate: { $gte: new Date() },
-    }).populate('tourist', 'name');
-
-    const totalTrekkers = await Booking.aggregate([
-      { $match: { guide: guideId, status: 'completed' } },
-      { $group: { _id: null, total: { $sum: '$numberOfPeople' } } },
-    ]);
-
-    const earnings = await Booking.aggregate([
-      { 
-        $match: { 
-          guide: guideId, 
-          status: { $in: ['confirmed', 'completed'] },
-          paymentStatus: 'paid'
-        } 
-      },
-      { 
-        $group: { 
-          _id: null, 
-          gross: { $sum: '$totalAmount' },
-          net: { $sum: { $subtract: ["$totalAmount", { $ifNull: ["$commission", { $multiply: ["$totalAmount", 0.1] }] }] } } 
-        } 
-      },
-    ]);
-
-    const potentialEarnings = await Booking.aggregate([
-      { 
-        $match: { 
-          guide: guideId, 
-          status: 'confirmed',
-          paymentStatus: 'pending'
-        } 
-      },
-      { $group: { _id: null, total: { $sum: '$totalAmount' } } }
-    ]);
-
-    const transactionHistory = await Booking.find({
-      guide: guideId,
-      status: { $in: ['confirmed', 'completed'] },
-      paymentStatus: 'paid'
-    })
-    .sort({ createdAt: -1 })
-    .limit(10)
-    .populate('tourist', 'name email avatar')
-    .populate('package', 'name');
-
-    const monthlyEarnings = await Booking.aggregate([
-      {
-        $match: {
-          guide: guideId,
-          status: { $in: ['confirmed', 'completed'] },
-          paymentStatus: 'paid',
-          createdAt: { $gte: new Date(new Date().setMonth(new Date().getMonth() - 6)) },
-        },
-      },
-      {
-        $group: {
-          _id: {
-            month: { $month: '$createdAt' },
-            year: { $year: '$createdAt' },
-          },
-          total: { $sum: { $subtract: ["$totalAmount", { $ifNull: ["$commission", { $multiply: ["$totalAmount", 0.1] }] }] } },
-          gross: { $sum: "$totalAmount" }
-        },
-      },
-      { $sort: { '_id.year': 1, '_id.month': 1 } },
-    ]);
-
-    res.json({
-      success: true,
-      stats: {
-        grossEarnings: earnings[0]?.gross || 0,
-        netEarnings: earnings[0]?.net || 0,
-        walletBalance: req.user.guideProfile?.earnings || 0,
-        totalCommission: (earnings[0]?.gross || 0) - (earnings[0]?.net || 0),
-        potentialEarnings: potentialEarnings[0]?.total || 0,
-        upcomingTrips: upcomingTrips.filter(b => b.status === 'confirmed').length,
-        pendingRequests,
-        totalTrekkers: totalTrekkers[0]?.total || 0,
-        rating: req.user.guideProfile?.rating || 0,
-      },
-      upcomingTrips,
-      monthlyEarnings,
-      transactionHistory,
-    });
-  } catch (error) {
-    console.error('DASHBOARD_ERROR:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Server failure during stats aggregation',
-      error: error.message,
-    });
-  }
-});
 
 // @route   GET /api/guides/:id/blocked-dates
 // @desc    Get guide's blocked dates (bookings + manual)
@@ -381,6 +424,7 @@ router.put(
       if (experience) {
         guide.guideProfile.experience = experience;
       }
+      const isNewVerificationRequest = governmentId && !guide.guideProfile.governmentId;
       if (governmentId) {
         guide.guideProfile.governmentId = governmentId;
         // Admin will verify this later
@@ -391,6 +435,21 @@ router.put(
       }
 
       await guide.save();
+
+      // Notify all admins when a guide submits their government ID for verification
+      if (governmentId) {
+        const admins = await User.find({ role: 'admin' });
+        for (const admin of admins) {
+          await createNotification(req.app, {
+            recipient: admin._id,
+            sender: req.user._id,
+            type: 'verification',
+            title: 'Guide Verification Request',
+            message: `${req.user.name} has submitted their government ID for verification. Please review and verify their profile.`,
+            extraData: { guideId: req.user._id }
+          });
+        }
+      }
 
       res.json({
         success: true,
@@ -507,6 +566,78 @@ router.put('/profile/password', protect, authorize('guide'), async (req, res) =>
     res.status(500).json({ success: false, message: 'Server error' });
   }
 });
+
+// @route   POST /api/guides/payout/request
+// @desc    Guide requests a wallet withdrawal
+// @access  Private (Guide only)
+router.post('/payout/request',
+  protect,
+  authorize('guide'),
+  [
+    body('amount').isFloat({ min: 1000 }).withMessage('Minimum payout is Rs. 1000'),
+    body('bankName').trim().notEmpty().withMessage('Bank name is required'),
+    body('accountHolder').trim().notEmpty().withMessage('Account holder name is required'),
+    body('accountNumber').trim().notEmpty().withMessage('Account number is required'),
+  ],
+  async (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ success: false, errors: errors.array() });
+    }
+
+    try {
+      const { amount, bankName, accountHolder, accountNumber, note } = req.body;
+      const guideId = new mongoose.Types.ObjectId(req.user._id);
+
+      // Block if a pending payout already exists
+      const existing = await Payout.findOne({ guide: req.user._id, status: 'pending' });
+      if (existing) {
+        return res.status(400).json({ success: false, message: 'You already have a pending payout request. Please wait for it to be processed.' });
+      }
+
+      // Calculate current wallet balance from transactions
+      const result = await Transaction.aggregate([
+        { $match: { user: guideId } },
+        { $group: { _id: null, balance: { $sum: { $cond: [{ $eq: ['$type', 'credit'] }, '$amount', { $multiply: ['$amount', -1] }] } } } }
+      ]);
+      const walletBalance = result[0]?.balance || 0;
+
+      if (amount > walletBalance) {
+        return res.status(400).json({
+          success: false,
+          message: `Insufficient balance. Your current wallet balance is Rs. ${walletBalance.toLocaleString()}.`
+        });
+      }
+
+      const payout = await Payout.create({
+        guide: req.user._id,
+        amount,
+        bankName,
+        accountHolder,
+        accountNumber,
+        note: note || ''
+      });
+
+      // Notify all admins
+      const admins = await User.find({ role: 'admin' });
+      for (const admin of admins) {
+        await createNotification(req.app, {
+          recipient: admin._id,
+          sender: req.user._id,
+          type: 'system',
+          title: 'Guide Payout Request',
+          message: `${req.user.name} has requested a payout of Rs. ${amount.toLocaleString()} to ${bankName}.`,
+          extraData: { payoutId: payout._id }
+        });
+      }
+
+      res.status(201).json({ success: true, message: 'Payout request submitted. Admin will process it shortly.', payout });
+    } catch (error) {
+      res.status(500).json({ success: false, message: 'Server error', error: error.message });
+    }
+  }
+);
+
 
 module.exports = router;
 

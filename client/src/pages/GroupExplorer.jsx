@@ -1,10 +1,13 @@
 import { useState, useEffect } from 'react';
-import axios from 'axios';
-import { FaUsers, FaPlus, FaMapMarkerAlt, FaCalendarAlt, FaChevronRight } from 'react-icons/fa';
+import { useNavigate } from 'react-router-dom';
+import { api, useAuth } from '../context/AuthContext';
+import { FaUsers, FaPlus, FaMapMarkerAlt, FaCalendarAlt, FaChevronRight, FaTrash } from 'react-icons/fa';
 import { toast } from 'react-toastify';
 import CreateGroupModal from '../components/CreateGroupModal';
 
 const GroupExplorer = () => {
+    const { user } = useAuth();
+    const navigate = useNavigate();
     const [groups, setGroups] = useState([]);
     const [loading, setLoading] = useState(true);
     const [showCreateModal, setShowCreateModal] = useState(false);
@@ -15,22 +18,43 @@ const GroupExplorer = () => {
 
     const fetchGroups = async () => {
         try {
-            const res = await axios.get('http://localhost:5000/api/groups');
+            setLoading(true);
+            const res = await api.get('/groups');
             setGroups(res.data.groups);
-            setLoading(false);
         } catch (error) {
             console.error('Error fetching groups:', error);
+            toast.error('Failed to load expedition groups');
+        } finally {
             setLoading(false);
         }
     };
 
-    const handleJoin = async (groupId) => {
+    const handleJoin = async (group) => {
+        const isMember = group.members.some(m => (m.user?._id || m.user) === user?._id);
+        
+        if (isMember) {
+            navigate('/chat', { state: { groupId: group._id, recipientName: group.name } });
+            return;
+        }
+
         try {
-            await axios.post(`http://localhost:5000/api/groups/${groupId}/join`);
-            toast.success('Successfully joined the expedition group!');
-            fetchGroups(); // Refresh list
+            await api.post(`/groups/${group._id}/join`);
+            toast.success('Welcome to the expedition team!');
+            navigate('/chat', { state: { groupId: group._id, recipientName: group.name } });
         } catch (error) {
             toast.error(error.response?.data?.message || 'Failed to join group');
+        }
+    };
+
+    const handleDelete = async (groupId) => {
+        if (!window.confirm('Are you sure you want to dissolve this expedition group? All chat history will be lost.')) return;
+        
+        try {
+            await api.delete(`/groups/${groupId}`);
+            toast.success('Expedition dissolved successfully');
+            fetchGroups();
+        } catch (error) {
+            toast.error(error.response?.data?.message || 'Failed to dissolve group');
         }
     };
 
@@ -63,9 +87,20 @@ const GroupExplorer = () => {
                                         <div className="p-4 bg-slate-50 rounded-2xl group-hover:bg-red-50 transition duration-500 text-slate-400 group-hover:text-red-500">
                                             <FaUsers className="text-2xl" />
                                         </div>
-                                        <span className="bg-green-100 text-green-700 px-4 py-1.5 rounded-full text-[10px] font-black tracking-widest uppercase">
-                                            {group.members.length} Members
-                                        </span>
+                                        <div className="flex items-center gap-3">
+                                            {(group.creator?._id || group.creator) === user?._id && (
+                                                <button 
+                                                    onClick={(e) => { e.stopPropagation(); handleDelete(group._id); }}
+                                                    className="p-3 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-xl transition"
+                                                    title="Dissolve Group"
+                                                >
+                                                    <FaTrash size={14} />
+                                                </button>
+                                            )}
+                                            <span className="bg-green-100 text-green-700 px-4 py-1.5 rounded-full text-[10px] font-black tracking-widest uppercase">
+                                                {group.members.length} Members
+                                            </span>
+                                        </div>
                                     </div>
 
                                     <h3 className="text-2xl font-black text-slate-900 mb-2 truncate group-hover:text-red-600 transition">{group.name}</h3>
@@ -83,10 +118,15 @@ const GroupExplorer = () => {
                                     </div>
 
                                     <button
-                                        onClick={() => handleJoin(group._id)}
-                                        className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black hover:bg-black transition flex items-center justify-center gap-2 group/btn"
+                                        onClick={() => handleJoin(group)}
+                                        className={`w-full py-4 rounded-2xl font-black transition flex items-center justify-center gap-2 group/btn ${
+                                            group.members.some(m => (m.user?._id || m.user) === user?._id)
+                                            ? 'bg-slate-100 text-slate-900 border-2 border-slate-200 hover:bg-slate-900 hover:text-white'
+                                            : 'bg-slate-900 text-white hover:bg-black'
+                                        }`}
                                     >
-                                        Jump In <FaChevronRight className="group-hover/btn:translate-x-1 transition" />
+                                        {group.members.some(m => (m.user?._id || m.user) === user?._id) ? 'Enter Chat' : 'Jump In'} 
+                                        <FaChevronRight className="group-hover/btn:translate-x-1 transition" />
                                     </button>
                                 </div>
                             </div>

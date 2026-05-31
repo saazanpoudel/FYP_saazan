@@ -26,6 +26,9 @@ const GuideCard = ({ guide }) => {
                 <div className="absolute top-6 right-6 bg-white/90 backdrop-blur-md px-3 py-1.5 rounded-xl flex items-center gap-1.5 shadow-lg border border-white">
                     <FaStar className="text-yellow-500 text-xs" />
                     <span className="text-xs font-black text-slate-900">{guide.guideProfile?.rating?.toFixed(1) || '0.0'}</span>
+                    {guide.guideProfile?.totalRatings > 0 && (
+                        <span className="text-[10px] text-slate-400 font-bold">({guide.guideProfile.totalRatings})</span>
+                    )}
                 </div>
 
                 <div className="absolute bottom-6 left-6 right-6">

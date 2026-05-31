@@ -1,9 +1,11 @@
 import { useState } from 'react';
-import axios from 'axios';
+import { useNavigate } from 'react-router-dom';
+import { api } from '../context/AuthContext';
 import { FaPlus, FaTimes, FaMountain, FaCalendarAlt, FaMapMarkedAlt, FaUsers } from 'react-icons/fa';
 import { toast } from 'react-toastify';
 
 const CreateGroupModal = ({ isOpen, onClose }) => {
+    const navigate = useNavigate();
     const [formData, setFormData] = useState({
         name: '',
         description: '',
@@ -20,11 +22,20 @@ const CreateGroupModal = ({ isOpen, onClose }) => {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
+        
+        if (new Date(formData.startDate) > new Date(formData.endDate)) {
+            toast.error('Expedition must start before it ends!');
+            return;
+        }
+
         setLoading(true);
         try {
-            await axios.post('http://localhost:5000/api/groups', formData);
-            toast.success('Expedition group formed successfully!');
-            onClose();
+            const res = await api.post('/groups', formData);
+            if (res.data.success) {
+                toast.success('Expedition group formed successfully!');
+                navigate('/chat', { state: { groupId: res.data.group._id, recipientName: res.data.group.name } });
+                onClose();
+            }
         } catch (error) {
             toast.error(error.response?.data?.message || 'Failed to form group');
         } finally {

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import { api, useAuth } from '../context/AuthContext';
 import ChatWindow from '../components/ChatWindow';
-import { FaUserCircle, FaCompass, FaChevronRight, FaComments } from 'react-icons/fa';
+import { FaUserCircle, FaCompass, FaChevronRight, FaComments, FaUsers } from 'react-icons/fa';
 
 const ChatPage = () => {
     const { user } = useAuth();
@@ -11,7 +11,7 @@ const ChatPage = () => {
     const [activeChat, setActiveChat] = useState(null);
     const [loading, setLoading] = useState(true);
 
-    const { bookingId, participantId, recipientName } = location.state || {};
+    const { bookingId, participantId, groupId, recipientName } = location.state || {};
 
     useEffect(() => {
         const initializeChat = async () => {
@@ -21,20 +21,25 @@ const ChatPage = () => {
                 const res = await api.get('/chat');
                 setChats(res.data.chats || []);
 
-                // 2. If we came here from a booking or profile, find or create that specific chat
-                if (bookingId && participantId) {
+                // 2. Handle redirection from Booking or Group
+                if (participantId) {
                     const chatRes = await api.post('/chat', { 
                         participant: participantId, 
-                        bookingId 
+                        bookingId: bookingId || null
                     });
                     if (chatRes.data.success) {
                         setActiveChat(chatRes.data.chat);
-                        // Refresh chat list to include new one if needed
+                        const refreshRes = await api.get('/chat');
+                        setChats(refreshRes.data.chats || []);
+                    }
+                } else if (groupId) {
+                    const chatRes = await api.post('/chat', { groupId, participant: user?._id });
+                    if (chatRes.data.success) {
+                        setActiveChat(chatRes.data.chat);
                         const refreshRes = await api.get('/chat');
                         setChats(refreshRes.data.chats || []);
                     }
                 } else if (res.data.chats.length > 0 && !activeChat) {
-                    // Otherwise just pick the first one
                     setActiveChat(res.data.chats[0]);
                 }
             } catch (error) {
@@ -45,7 +50,7 @@ const ChatPage = () => {
         };
 
         initializeChat();
-    }, [bookingId, participantId]);
+    }, [bookingId, participantId, groupId]);
 
     if (loading && chats.length === 0) {
         return (
@@ -71,7 +76,10 @@ const ChatPage = () => {
                         
                         <div className="flex-1 overflow-y-auto custom-scrollbar p-4 space-y-3">
                             {chats.map((chat) => {
-                                const otherParticipant = chat.participants.find(p => p._id !== chat.participants[0]._id) || chat.participants[0];
+                                const isGroup = chat.type === 'group';
+                                const otherParticipant = !isGroup 
+                                    ? (chat.participants.find(p => p._id !== user?._id) || chat.participants[0])
+                                    : null;
                                 const isSelected = activeChat?._id === chat._id;
                                 
                                 return (
@@ -85,24 +93,28 @@ const ChatPage = () => {
                                         }`}
                                     >
                                         <div className="relative">
-                                            <img 
-                                                src={otherParticipant.avatar || `https://ui-avatars.com/api/?name=${otherParticipant.name}`} 
-                                                className="w-12 h-12 rounded-2xl object-cover border-2 border-white shadow-sm"
-                                            />
+                                            {isGroup ? (
+                                                <div className="w-12 h-12 rounded-2xl bg-red-600 flex items-center justify-center text-white text-xl">
+                                                    <FaUsers />
+                                                </div>
+                                            ) : (
+                                                <img 
+                                                    src={otherParticipant?.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(otherParticipant?.name || 'User')}`} 
+                                                    className="w-12 h-12 rounded-2xl object-cover border-2 border-white shadow-sm"
+                                                />
+                                            )}
                                             <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-emerald-500 border-2 border-white rounded-full"></div>
                                         </div>
                                         <div className="flex-1 text-left min-w-0">
                                             <h4 className={`font-black uppercase tracking-tight text-xs truncate ${isSelected ? 'text-white' : 'text-slate-900'}`}>
-                                                {otherParticipant.name}
+                                                {isGroup ? chat.groupId?.name : otherParticipant?.name}
                                             </h4>
-                                            {chat.bookingId && (
-                                                <div className="flex items-center gap-1 mt-1">
-                                                    <FaCompass className={`text-[9px] ${isSelected ? 'text-red-400' : 'text-slate-400'}`} />
-                                                    <span className={`text-[9px] font-bold uppercase truncate ${isSelected ? 'text-slate-400' : 'text-slate-400'}`}>
-                                                        {chat.bookingId.package?.title || 'Expedition'}
-                                                    </span>
-                                                </div>
-                                            )}
+                                            <div className="flex items-center gap-1 mt-1">
+                                                <FaCompass className={`text-[9px] ${isSelected ? 'text-red-400' : 'text-slate-400'}`} />
+                                                <span className={`text-[9px] font-bold uppercase truncate ${isSelected ? 'text-slate-400' : 'text-slate-400'}`}>
+                                                    {isGroup ? 'Group Expedition' : (chat.bookingId?.package?.title || 'Private Signal')}
+                                                </span>
+                                            </div>
                                         </div>
                                         {isSelected && <FaChevronRight className="text-white/20 text-xs" />}
                                     </button>
@@ -128,7 +140,11 @@ const ChatPage = () => {
                             <div className="flex-1 bg-white rounded-[3rem] shadow-2xl shadow-slate-200/50 border border-slate-100 overflow-hidden flex flex-col">
                                 <ChatWindow 
                                     chatId={activeChat._id} 
-                                    recipientName={activeChat.participants.find(p => p._id !== (user?._id || ''))?.name || 'Explorer'} 
+                                    groupId={activeChat.groupId?._id || activeChat.groupId}
+                                    type={activeChat.type}
+                                    recipientName={activeChat.type === 'group' 
+                                        ? activeChat.groupId?.name 
+                                        : (activeChat.participants.find(p => p._id !== user?._id)?.name || 'Explorer')} 
                                 />
                             </div>
                         ) : (

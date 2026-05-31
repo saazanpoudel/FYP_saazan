@@ -141,7 +141,7 @@ const Forum = () => {
                                 <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Headline</label>
                                 <input
                                     required
-                                    className="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl focus:border-red-500 outline-none transition font-bold"
+                                    className="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl focus:border-slate-300 outline-none transition font-bold shadow-sm"
                                     placeholder="e.g., Sunrise at Thorong La Pass"
                                     value={newPost.title}
                                     onChange={(e) => setNewPost({ ...newPost, title: e.target.value })}
@@ -161,7 +161,7 @@ const Forum = () => {
                             <div>
                                 <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Tags (Optional)</label>
                                 <input
-                                    className="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl focus:border-red-500 outline-none transition font-bold"
+                                    className="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl focus:border-slate-300 outline-none transition font-bold shadow-sm"
                                     placeholder="trekking, views, gear..."
                                     value={newPost.tags}
                                     onChange={(e) => setNewPost({ ...newPost, tags: e.target.value })}

@@ -1,10 +1,12 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FaCloudUploadAlt, FaPlus, FaTrash, FaSpinner, FaMountain } from 'react-icons/fa';
-import { api } from '../context/AuthContext';
+import { api, useAuth } from '../context/AuthContext';
+import { toast } from 'react-toastify';
 
 const CreatePackage = () => {
     const navigate = useNavigate();
+    const { user } = useAuth();
     const [isUploading, setIsUploading] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [formData, setFormData] = useState({
@@ -102,7 +104,13 @@ const CreatePackage = () => {
         setIsSubmitting(true);
         try {
             const res = await api.post('/packages', cleanedData);
-            navigate(`/packages/${res.data.package._id}`);
+            if (user?.role === 'admin') {
+                toast.success('Package created and approved.');
+                navigate(`/packages/${res.data.package._id}`);
+            } else {
+                toast.success('Package submitted for admin approval. You can track its status in My Packages.');
+                navigate('/dashboard?tab=packages');
+            }
         } catch (error) {
             console.error('Error creating package:', error);
             alert(error.response?.data?.message || 'Failed to create package');
@@ -171,7 +179,7 @@ const CreatePackage = () => {
                                 name="title"
                                 value={formData.title}
                                 onChange={handleChange}
-                                className="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:ring-4 focus:ring-red-500/10 focus:border-red-500 outline-none transition font-bold text-slate-900"
+                                className="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:ring-2 focus:ring-slate-100 focus:border-slate-300 outline-none transition font-bold text-slate-900"
                                 placeholder="e.g. Annapurna Base Camp Luxury Trek"
                                 required
                             />
@@ -184,7 +192,7 @@ const CreatePackage = () => {
                                 name="destination"
                                 value={formData.destination}
                                 onChange={handleChange}
-                                className="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:ring-4 focus:ring-red-500/10 focus:border-red-500 outline-none transition font-bold text-slate-900"
+                                className="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:ring-2 focus:ring-slate-100 focus:border-slate-300 outline-none transition font-bold text-slate-900"
                                 placeholder="e.g. Annapurna Conservation Area"
                                 required
                             />
@@ -192,13 +200,13 @@ const CreatePackage = () => {
 
                         <div className="grid grid-cols-2 gap-4">
                             <div>
-                                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Rate ($)</label>
+                                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Rate (Nrs.)</label>
                                 <input
                                     type="number"
                                     name="price"
                                     value={formData.price}
                                     onChange={handleChange}
-                                    className="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:ring-4 focus:ring-red-500/10 focus:border-red-500 outline-none transition font-bold text-slate-900 text-center"
+                                    className="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:ring-2 focus:ring-slate-100 focus:border-slate-300 outline-none transition font-bold text-slate-900 text-center"
                                     placeholder="0.00"
                                     required
                                 />
@@ -210,7 +218,7 @@ const CreatePackage = () => {
                                     name="duration"
                                     value={formData.duration}
                                     onChange={handleChange}
-                                    className="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:ring-4 focus:ring-red-500/10 focus:border-red-500 outline-none transition font-bold text-slate-900 text-center"
+                                    className="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:ring-2 focus:ring-slate-100 focus:border-slate-300 outline-none transition font-bold text-slate-900 text-center"
                                     min="1"
                                     required
                                 />
@@ -223,7 +231,7 @@ const CreatePackage = () => {
                                 name="difficulty"
                                 value={formData.difficulty}
                                 onChange={handleChange}
-                                className="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:ring-4 focus:ring-red-500/10 focus:border-red-500 outline-none transition font-bold text-slate-900"
+                                className="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:ring-2 focus:ring-slate-100 focus:border-slate-300 outline-none transition font-bold text-slate-900"
                             >
                                 <option value="easy">Easy (Casual Walk)</option>
                                 <option value="moderate">Moderate (Standard Trek)</option>
@@ -239,7 +247,7 @@ const CreatePackage = () => {
                                 name="maxPeople"
                                 value={formData.maxPeople}
                                 onChange={handleChange}
-                                className="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:ring-4 focus:ring-red-500/10 focus:border-red-500 outline-none transition font-bold text-slate-900"
+                                className="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:ring-2 focus:ring-slate-100 focus:border-slate-300 outline-none transition font-bold text-slate-900"
                                 min="1"
                                 required
                             />
@@ -251,7 +259,7 @@ const CreatePackage = () => {
                                 name="description"
                                 value={formData.description}
                                 onChange={handleChange}
-                                className="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:ring-4 focus:ring-red-500/10 focus:border-red-500 outline-none transition font-bold text-slate-900 h-32"
+                                className="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:ring-2 focus:ring-slate-100 focus:border-slate-300 outline-none transition font-bold text-slate-900 h-32"
                                 placeholder="Describe the soul of this journey..."
                                 required
                             />
@@ -275,20 +283,20 @@ const CreatePackage = () => {
                     <div className="space-y-4">
                         {formData.itinerary.map((day, idx) => (
                             <div key={idx} className="p-6 bg-slate-50 border border-slate-100 rounded-3xl flex gap-6 group">
-                                <div className="text-red-600 font-black text-sm whitespace-nowrap pt-2">Phase {day.day}</div>
+                                <div className="text-slate-400 font-black text-sm whitespace-nowrap pt-2">Phase {day.day}</div>
                                 <div className="flex-grow grid grid-cols-1 gap-3">
                                     <input
                                         type="text"
                                         placeholder="Segment Title (e.g. Kathmandu to Lukla)"
                                         value={day.title}
                                         onChange={(e) => handleItineraryChange(idx, 'title', e.target.value)}
-                                        className="w-full px-4 py-2 bg-white border border-slate-100 rounded-xl outline-none focus:border-red-500 font-bold text-sm"
+                                        className="w-full px-4 py-2 bg-white border border-slate-100 rounded-xl outline-none focus:border-slate-300 font-bold text-sm"
                                     />
                                     <textarea
                                         placeholder="Operational activities & details..."
                                         value={day.description || ''}
                                         onChange={(e) => handleItineraryChange(idx, 'description', e.target.value)}
-                                        className="w-full px-4 py-2 bg-white border border-slate-100 rounded-xl outline-none focus:border-red-500 font-medium text-sm h-24"
+                                        className="w-full px-4 py-2 bg-white border border-slate-100 rounded-xl outline-none focus:border-slate-300 font-medium text-sm h-24"
                                     />
                                 </div>
                             </div>

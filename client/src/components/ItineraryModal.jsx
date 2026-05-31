@@ -1,6 +1,8 @@
 import { FaTimes, FaMapMarkerAlt, FaCalendarDay } from 'react-icons/fa';
+import { useNavigate } from 'react-router-dom';
 
-const ItineraryModal = ({ trek, onClose }) => {
+const ItineraryModal = ({ trek, mode = 'view', onClose }) => {
+    const navigate = useNavigate();
     if (!trek) return null;
 
     return (
@@ -15,13 +17,15 @@ const ItineraryModal = ({ trek, onClose }) => {
                         <FaTimes size={24} />
                     </button>
                     <div className="flex items-center gap-4 mb-4">
-                        <span className="px-3 py-1 bg-red-600 text-[10px] font-black uppercase tracking-widest rounded-full">Suggested Expedition</span>
+                        <span className="px-3 py-1 bg-red-600 text-[10px] font-black uppercase tracking-widest rounded-full">
+                            {mode === 'suggested' ? 'Suggested Expedition' : 'Expedition Schedule'}
+                        </span>
                     </div>
                     <h2 className="text-4xl font-black uppercase tracking-tighter leading-none mb-2">{trek.name}</h2>
                     <div className="flex gap-6 items-center text-slate-400 font-bold text-sm uppercase tracking-widest">
                         <span className="flex items-center gap-2"><FaCalendarDay className="text-red-500" /> {trek.days} Days</span>
                         <span className="flex items-center gap-2"><FaMapMarkerAlt className="text-sky-500" /> {trek.difficulty}</span>
-                        <span className="text-white">{trek.price}</span>
+                        <span className="text-white">Nrs. {trek.price}</span>
                     </div>
                 </div>
 
@@ -54,15 +58,19 @@ const ItineraryModal = ({ trek, onClose }) => {
                             <div key={idx} className="flex gap-6 group">
                                 <div className="flex flex-col items-center">
                                     <div className="w-10 h-10 rounded-2xl bg-slate-50 border-2 border-slate-100 flex items-center justify-center text-slate-900 font-black text-sm group-hover:bg-red-600 group-hover:text-white group-hover:border-red-600 transition-all duration-300">
-                                        {idx + 1}
+                                        {day.day || idx + 1}
                                     </div>
                                     {idx !== trek.itinerary.length - 1 && (
                                         <div className="w-0.5 h-full bg-slate-100 mt-2"></div>
                                     )}
                                 </div>
                                 <div className="pb-2">
-                                    <h4 className="font-black text-slate-900 uppercase tracking-tight mb-2 group-hover:text-red-600 transition-colors">Day {idx + 1}</h4>
-                                    <p className="text-slate-500 font-medium leading-relaxed">{day}</p>
+                                    <h4 className="font-black text-slate-900 uppercase tracking-tight mb-2 group-hover:text-red-600 transition-colors">
+                                        Day {day.day || idx + 1}: {day.title}
+                                    </h4>
+                                    <p className="text-slate-500 font-medium leading-relaxed">
+                                        {day.description || (day.activities && day.activities.join(', '))}
+                                    </p>
                                 </div>
                             </div>
                         ))}
@@ -102,9 +110,14 @@ const ItineraryModal = ({ trek, onClose }) => {
                     >
                         Close
                     </button>
-                    <button className="flex-2 px-12 py-4 bg-red-600 text-white rounded-2xl font-black uppercase tracking-tighter hover:bg-black transition shadow-xl shadow-red-100">
-                        Book This Trek
-                    </button>
+                    {mode === 'suggested' && (
+                        <button 
+                            onClick={() => navigate(`/packages/${trek._id}`)}
+                            className="flex-2 px-12 py-4 bg-red-600 text-white rounded-2xl font-black uppercase tracking-tighter hover:bg-black transition shadow-xl shadow-red-100"
+                        >
+                            Book This Trek
+                        </button>
+                    )}
                 </div>
             </div>
         </div>

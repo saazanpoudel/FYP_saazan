@@ -75,6 +75,22 @@ const bookingSchema = new mongoose.Schema({
     type: String,
     default: '',
   },
+  refundDetails: {
+    bankName: String,
+    accountHolder: String,
+    accountNumber: String,
+    refundAmount: Number,
+    requestedAt: Date,
+    status: {
+      type: String,
+      enum: ['pending', 'processed'],
+      default: 'pending'
+    },
+    companyShare: Number,
+    guideShare: Number,
+    proofImage: String,
+    processedAt: Date
+  },
   createdAt: {
     type: Date,
     default: Date.now,

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import { api } from '../context/AuthContext';
 import {
     FaStar, FaMapMarkerAlt, FaLanguage, FaCertificate,
     FaCheckCircle, FaUsers, FaHiking, FaAward, FaCommentDots
@@ -13,7 +14,7 @@ import { toast } from 'react-toastify';
 const GuideProfile = () => {
     const { id } = useParams();
     const navigate = useNavigate();
-    const { isAuthenticated } = useAuth();
+    const { user, isAuthenticated } = useAuth();
     const [guide, setGuide] = useState(null);
     const [reviews, setReviews] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -25,8 +26,8 @@ const GuideProfile = () => {
     const fetchGuideDetails = async () => {
         try {
             const [guideRes, reviewsRes] = await Promise.all([
-                axios.get(`http://localhost:5000/api/guides/${id}`),
-                axios.get(`http://localhost:5000/api/guides/${id}/reviews`)
+                api.get(`/guides/${id}`),
+                api.get(`/guides/${id}/reviews`)
             ]);
             setGuide(guideRes.data.guide);
             setReviews(reviewsRes.data.reviews);
@@ -39,6 +40,10 @@ const GuideProfile = () => {
     };
 
     const handleBookPackage = (pkg) => {
+        if (user?.role === 'guide') {
+            navigate(`/packages/${pkg._id}`);
+            return;
+        }
         if (!isAuthenticated) {
             toast.info('Please login to book a package');
             navigate('/login');
@@ -59,8 +64,8 @@ const GuideProfile = () => {
     if (!guide) return <div className="text-center py-24 text-slate-400 font-bold">Guide not found</div>;
 
     const stats = [
-        { label: 'Trekkers Led', value: '120+', icon: <FaUsers className="text-sky-500" /> },
-        { label: 'Experiences', value: '45', icon: <FaHiking className="text-red-500" /> },
+        { label: 'Trekkers Led', value: guide.totalPeopleLed ?? 0, icon: <FaUsers className="text-sky-500" /> },
+        { label: 'Packages', value: guide.packages?.length ?? 0, icon: <FaHiking className="text-red-500" /> },
         { label: 'Avg Rating', value: guide.guideProfile?.rating?.toFixed(1) || '0.0', icon: <FaStar className="text-yellow-500" /> },
         { label: 'Total Reviews', value: reviews.length || 0, icon: <FaCommentDots className="text-purple-500" /> },
     ];
@@ -103,7 +108,14 @@ const GuideProfile = () => {
                             <div className="space-y-4 mb-8">
                                 <div className="flex items-center gap-3 p-4 bg-slate-50 rounded-2xl border border-slate-100">
                                     <FaStar className="text-yellow-500" />
-                                    <span className="text-sm font-bold text-slate-700">{guide.guideProfile?.rating?.toFixed(1) || '0.0'} (Average Rating)</span>
+                                    <div>
+                                        <span className="text-sm font-bold text-slate-700">
+                                            {guide.guideProfile?.rating?.toFixed(1) || '0.0'} / 5.0
+                                        </span>
+                                        <span className="text-xs text-slate-400 font-medium ml-2">
+                                            ({reviews.length} review{reviews.length !== 1 ? 's' : ''})
+                                        </span>
+                                    </div>
                                 </div>
                                 <div className="flex items-center gap-3 p-4 bg-slate-50 rounded-2xl border border-slate-100">
                                     <FaMapMarkerAlt className="text-red-500" />
@@ -121,11 +133,6 @@ const GuideProfile = () => {
 
                             <GuideAvailabilityCalendar availability={guide.guideProfile?.availability} />
 
-                            <div className="mt-8 space-y-4">
-                                <button className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black hover:bg-black transition shadow-xl flex items-center justify-center gap-3">
-                                    <FaCommentDots className="text-xl" /> Message Guide
-                                </button>
-                            </div>
                         </div>
                     </div>
 

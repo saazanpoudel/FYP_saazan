@@ -1,6 +1,6 @@
 const express = require('express');
 const { protect } = require('../middleware/auth');
-const { uploadProfile, uploadVerification, uploadPackage } = require('../config/cloudinary');
+const { uploadProfile, uploadVerification, uploadPackage, uploadRefund } = require('../config/cloudinary');
 
 const router = express.Router();
 
@@ -46,6 +46,21 @@ router.post('/packages', protect, uploadPackage.array('images', 5), (req, res) =
   res.json({
     success: true,
     urls, // Array of Cloudinary URLs
+  });
+});
+
+// @route   POST /api/uploads/refund-proof
+// @desc    Upload refund payout proof to Cloudinary
+// @access  Private (Admin only)
+router.post('/refund-proof', protect, uploadRefund.single('image'), (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ success: false, message: 'No proof image provided' });
+  }
+
+  res.json({
+    success: true,
+    url: req.file.path,
+    public_id: req.file.filename,
   });
 });
 

@@ -1,3 +1,4 @@
+require('./config/dns');
 const express = require('express');
 const cors = require('cors');
 const http = require('http');
@@ -96,6 +97,10 @@ const startServer = async () => {
     server.listen(PORT, () => {
       console.log(`Server running on port ${PORT}`);
       console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+      const emailStatus = process.env.EMAIL_ENABLED === 'true'
+        ? `ENABLED (${process.env.EMAIL_USER})`
+        : 'DISABLED (dev fallback — link shown on screen)';
+      console.log(`Email: ${emailStatus}`);
     });
     
     // Handle server errors (like EADDRINUSE)

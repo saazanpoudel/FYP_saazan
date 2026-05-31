@@ -23,6 +23,11 @@ const Booking = () => {
     const [availableDates, setAvailableDates] = useState([]);
 
     useEffect(() => {
+        if (user?.role === 'guide') {
+            toast.error('Guides are not permitted to make bookings.');
+            navigate('/dashboard');
+            return;
+        }
         if (!pkg || !guide) {
             navigate('/packages');
             return;
@@ -112,43 +117,38 @@ const Booking = () => {
             const bookingId = bookingRes.data.booking._id;
 
             if (paymentMethod === 'esewa') {
-                // 2. Initialize eSewa Payment
-                const paymentRes = await api.post(`/bookings/${bookingId}/pay`);
-                
-                if (paymentRes.data.isMock) {
-                    toast.success('Test payment successful!');
-                    navigate('/dashboard?status=success&message=Payment-received');
-                    return;
-                }
-
+                // 2. Get signed eSewa form fields from backend
+                const paymentRes = await api.post(`/bookings/${bookingId}/pay/esewa/initiate`);
                 const { formData, esewa_url } = paymentRes.data;
-                // ... rest of form submission if not mock ...
-                const form = document.createElement('form');
-                form.setAttribute('method', 'POST');
-                form.setAttribute('action', esewa_url);
 
-                for (const key in formData) {
-                    const hiddenField = document.createElement('input');
-                    hiddenField.setAttribute('type', 'hidden');
-                    hiddenField.setAttribute('name', key);
-                    hiddenField.setAttribute('value', formData[key]);
-                    form.appendChild(hiddenField);
-                }
+                // 3. Build a hidden HTML form and submit it to eSewa's portal
+                //    This redirects the browser to eSewa — no further JS runs after submit()
+                const form = document.createElement('form');
+                form.method = 'POST';
+                form.action = esewa_url;
+
+                Object.entries(formData).forEach(([key, value]) => {
+                    const input = document.createElement('input');
+                    input.type = 'hidden';
+                    input.name = key;
+                    input.value = value;
+                    form.appendChild(input);
+                });
 
                 document.body.appendChild(form);
                 form.submit();
+                // Browser navigates away — execution stops here
             } else {
-                // 2. Initialize Khalti Payment
+                // Khalti — still mock until Khalti live keys are available
                 const paymentRes = await api.post(`/bookings/${bookingId}/pay/khalti`);
-                
+
                 if (paymentRes.data.isMock) {
-                    toast.success('Test payment successful!');
-                    navigate('/dashboard?status=success&message=Payment-received-via-khalti');
+                    toast.success('Test payment successful! (Khalti sandbox)');
+                    navigate('/dashboard?payment=success');
                     return;
                 }
 
-                const { payment_url } = paymentRes.data;
-                window.location.href = payment_url;
+                window.location.href = paymentRes.data.payment_url;
             }
 
         } catch (error) {
@@ -194,7 +194,7 @@ const Booking = () => {
                                         </div>
                                         <div className="flex justify-between text-sm">
                                             <span className="text-slate-500 font-bold uppercase tracking-widest">Base Price</span>
-                                            <span className="font-black">${pkg.price}</span>
+                                            <span className="font-black">Nrs. {pkg.price}</span>
                                         </div>
                                         <div className="flex justify-between text-sm">
                                             <span className="text-slate-500 font-bold uppercase tracking-widest">People</span>
@@ -202,7 +202,7 @@ const Booking = () => {
                                         </div>
                                         <div className="pt-4 border-t border-white/10 flex justify-between items-baseline">
                                             <span className="text-lg font-black uppercase tracking-tighter">Total Price</span>
-                                            <span className="text-4xl font-black text-red-500">${pkg.price * numberOfPeople}</span>
+                                            <span className="text-4xl font-black text-red-500">Nrs. {pkg.price * numberOfPeople}</span>
                                         </div>
                                     </div>
                                 </div>
@@ -299,7 +299,7 @@ const Booking = () => {
                                             <select 
                                                 value={numberOfPeople}
                                                 onChange={(e) => setNumberOfPeople(parseInt(e.target.value))}
-                                                className="w-full px-6 py-5 bg-slate-50 border-2 border-slate-100 rounded-[1.5rem] focus:ring-4 focus:ring-red-50 focus:border-red-600 transition-all font-bold appearance-none"
+                                                className="w-full px-6 py-5 bg-slate-50 border-2 border-slate-100 rounded-[1.5rem] focus:ring-2 focus:ring-slate-50 focus:border-slate-300 transition-all font-bold appearance-none"
                                             >
                                                 {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(n => (
                                                     <option key={n} value={n}>{n} {n === 1 ? 'Person' : 'People'}</option>
@@ -332,7 +332,7 @@ const Booking = () => {
                                             <textarea
                                                 value={notes}
                                                 onChange={(e) => setNotes(e.target.value)}
-                                                className="w-full px-6 py-5 bg-slate-50 border-2 border-slate-100 rounded-[1.5rem] focus:ring-4 focus:ring-red-50 focus:border-red-600 transition-all font-bold h-32 resize-none"
+                                                className="w-full px-6 py-5 bg-slate-50 border-2 border-slate-100 rounded-[1.5rem] focus:ring-2 focus:ring-slate-50 focus:border-slate-300 transition-all font-bold h-32 resize-none"
                                                 placeholder="Dietary restrictions, health conditions, or custom itinerary requests..."
                                             ></textarea>
                                         </div>
@@ -345,7 +345,7 @@ const Booking = () => {
                                                 Secure Payment via {paymentMethod === 'esewa' ? 'eSewa' : 'Khalti'}
                                             </h4>
                                             {paymentMethod === 'khalti' ? (
-                                                <p className="text-purple-700 text-xs font-bold leading-relaxed">Khalti Test Mode actively enabled. Processing standard test txn of Rs 100.</p>
+                                                <p className="text-purple-700 text-xs font-bold leading-relaxed">Khalti Test Mode actively enabled. Processing standard test txn of Nrs. 100.</p>
                                             ) : (
                                                 <p className="text-emerald-700 text-xs font-bold leading-relaxed">You will be redirected to eSewa's secure portal to complete your transaction in industry-standard simple words.</p>
                                             )}

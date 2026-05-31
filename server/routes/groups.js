@@ -1,7 +1,9 @@
 const express = require('express');
 const { body, validationResult } = require('express-validator');
 const Group = require('../models/Group');
+const { Chat } = require('../models/Chat');
 const { protect } = require('../middleware/auth');
+const { createNotification } = require('../utils/notify');
 
 const router = express.Router();
 
@@ -42,6 +44,13 @@ router.post(
             role: 'admin',
           },
         ],
+      });
+
+      // Create a corresponding chat room for the group
+      await Chat.create({
+        participants: [req.user._id],
+        type: 'group',
+        groupId: group._id,
       });
 
       const populatedGroup = await Group.findById(group._id)
@@ -183,6 +192,22 @@ router.post('/:id/join', protect, async (req, res) => {
 
     await group.save();
 
+    // Update the corresponding chat room's participants
+    const chat = await Chat.findOne({ groupId: group._id, type: 'group' });
+    if (chat) {
+      if (!chat.participants.includes(req.user._id)) {
+        chat.participants.push(req.user._id);
+        await chat.save();
+      }
+    } else {
+      // Create if it doesn't exist for some reason
+      await Chat.create({
+        participants: [group.creator, req.user._id],
+        type: 'group',
+        groupId: group._id,
+      });
+    }
+
     const populatedGroup = await Group.findById(group._id)
       .populate('creator', 'name email avatar')
       .populate('members.user', 'name email avatar');
@@ -193,6 +218,18 @@ router.post('/:id/join', protect, async (req, res) => {
       io.to(`group-${group._id}`).emit('member-joined', {
         user: req.user,
         group: populatedGroup,
+      });
+    }
+
+    // Notify group creator when someone joins
+    if (group.creator.toString() !== req.user._id.toString()) {
+      await createNotification(req.app, {
+        recipient: group.creator,
+        sender: req.user._id,
+        type: 'group',
+        title: 'New Member Joined Your Group',
+        message: `${req.user.name} has joined your group "${group.name}". The group now has ${populatedGroup.members.length} member(s).`,
+        extraData: { groupId: group._id }
       });
     }
 
@@ -253,6 +290,53 @@ router.post('/:id/leave', protect, async (req, res) => {
     res.json({
       success: true,
       group: populatedGroup,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Server error',
+      error: error.message,
+    });
+  }
+});
+
+// @route   DELETE /api/groups/:id
+// @desc    Delete a group
+// @access  Private
+router.delete('/:id', protect, async (req, res) => {
+  try {
+    const group = await Group.findById(req.params.id);
+
+    if (!group) {
+      return res.status(404).json({
+        success: false,
+        message: 'Group not found',
+      });
+    }
+
+    // Check permissions: Admin, Creator, or Member with role 'admin'
+    const isCreator = group.creator.toString() === req.user._id.toString();
+    const isAdminUser = req.user.role === 'admin';
+    const isGroupAdmin = group.members.some(
+      (m) => m.user.toString() === req.user._id.toString() && m.role === 'admin'
+    );
+
+    if (!isCreator && !isAdminUser && !isGroupAdmin) {
+      return res.status(403).json({
+        success: false,
+        message: 'You do not have permission to delete this group',
+      });
+    }
+
+    // Delete associated chat
+    await Chat.deleteOne({ groupId: group._id, type: 'group' });
+
+    // Delete the group
+    await Group.findByIdAndDelete(req.params.id);
+
+    res.json({
+      success: true,
+      message: 'Group deleted successfully',
     });
   } catch (error) {
     res.status(500).json({

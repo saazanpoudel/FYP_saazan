@@ -61,6 +61,20 @@ export const AuthProvider = ({ children }) => {
 
     const googleLoginCustom = async (accessToken) => {
         const res = await api.post('/auth/google-access-token', { accessToken });
+        
+        if (res.data.registerRequired) {
+            return res.data; // Return registration info for frontend handling
+        }
+
+        localStorage.setItem('token', res.data.token);
+        api.defaults.headers.common['Authorization'] = `Bearer ${res.data.token}`;
+        setUser(res.data.user);
+        setIsAuthenticated(true);
+        return res.data;
+    };
+
+    const finalizeGoogleRegistration = async (registrationData) => {
+        const res = await api.post('/auth/google-finalize', registrationData);
         localStorage.setItem('token', res.data.token);
         api.defaults.headers.common['Authorization'] = `Bearer ${res.data.token}`;
         setUser(res.data.user);
@@ -94,6 +108,7 @@ export const AuthProvider = ({ children }) => {
         login,
         register,
         googleLoginCustom,
+        finalizeGoogleRegistration,
         updateProfile,
         becomeGuide,
         logout,

@@ -3,8 +3,10 @@ import axios from 'axios';
 import GuideCard from '../components/GuideCard';
 import { FaSearch, FaMapMarkedAlt, FaThLarge, FaCompass, FaChevronRight } from 'react-icons/fa';
 import GuideMap from '../components/GuideMap';
+import { useAuth } from '../context/AuthContext';
 
 const GuideList = () => {
+    const { user } = useAuth();
     const [guides, setGuides] = useState([]);
     const [loading, setLoading] = useState(true);
     const [viewMode, setViewMode] = useState('grid'); // 'grid' or 'map'
@@ -71,7 +73,7 @@ const GuideList = () => {
                             name="specialization"
                             value={filters.specialization}
                             onChange={handleFilterChange}
-                            className="w-full h-14 px-6 bg-slate-50 border-2 border-slate-50 rounded-2xl focus:border-red-500 focus:bg-white transition-all outline-none font-bold text-slate-700 appearance-none"
+                            className="w-full h-14 px-6 bg-slate-50 border-2 border-slate-50 rounded-2xl focus:border-slate-300 focus:bg-white transition-all outline-none font-bold text-slate-700 shadow-sm appearance-none"
                         >
                             <option value="">All Categories</option>
                             <option value="Trekking">High Altitude Trekking</option>
@@ -86,7 +88,7 @@ const GuideList = () => {
                             name="minRating"
                             value={filters.minRating}
                             onChange={handleFilterChange}
-                            className="w-full h-14 px-6 bg-slate-50 border-2 border-slate-50 rounded-2xl focus:border-red-500 focus:bg-white transition-all outline-none font-bold text-slate-700 appearance-none"
+                            className="w-full h-14 px-6 bg-slate-50 border-2 border-slate-50 rounded-2xl focus:border-slate-300 focus:bg-white transition-all outline-none font-bold text-slate-700 shadow-sm appearance-none"
                         >
                             <option value="">Any Rating</option>
                             <option value="4.5">Excellent (4.5+)</option>
@@ -103,7 +105,7 @@ const GuideList = () => {
                                 placeholder="e.g. English, Nepali, French"
                                 value={filters.language}
                                 onChange={handleFilterChange}
-                                className="w-full h-14 px-6 bg-slate-50 border-2 border-slate-50 rounded-2xl focus:border-red-500 focus:bg-white transition-all outline-none font-bold text-slate-700"
+                                className="w-full h-14 px-6 bg-slate-50 border-2 border-slate-50 rounded-2xl focus:border-slate-300 focus:bg-white transition-all outline-none font-bold text-slate-700 shadow-sm"
                             />
                         </div>
                     </div>
@@ -115,15 +117,17 @@ const GuideList = () => {
                 <div className="flex justify-center py-24">
                     <div className="animate-spin rounded-full h-12 w-12 border-b-4 border-red-600"></div>
                 </div>
-            ) : guides.length > 0 ? (
+            ) : guides.filter(g => g.name.toLowerCase() !== 'jopin' && g._id !== user?._id).length > 0 ? (
                 viewMode === 'grid' ? (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                        {guides.map((guide) => (
-                            <GuideCard key={guide._id} guide={guide} />
-                        ))}
+                        {guides
+                            .filter(g => g.name.toLowerCase() !== 'jopin' && g._id !== user?._id)
+                            .map((guide) => (
+                                <GuideCard key={guide._id} guide={guide} />
+                            ))}
                     </div>
                 ) : (
-                    <GuideMap guides={guides} />
+                    <GuideMap guides={guides.filter(g => g.name.toLowerCase() !== 'jopin' && g._id !== user?._id)} />
                 )
             ) : (
                 <div className="bg-white p-24 rounded-[3rem] border-2 border-dashed border-slate-200 text-center">

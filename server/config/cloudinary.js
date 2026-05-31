@@ -47,13 +47,28 @@ const packageStorage = new CloudinaryStorage({
   },
 });
 
+// Setup Storage for Refund Settlements
+const refundStorage = new CloudinaryStorage({
+  cloudinary: cloudinary,
+  params: {
+    folder: 'sgms/refunds',
+    allowed_formats: ['jpg', 'png', 'jpeg'],
+    transformation: [
+      { width: 1200, crop: 'limit' },
+      { quality: 'auto' }
+    ],
+  },
+});
+
 const uploadProfile = multer({ storage: profileStorage });
 const uploadVerification = multer({ storage: verificationStorage });
 const uploadPackage = multer({ storage: packageStorage });
+const uploadRefund = multer({ storage: refundStorage });
 
 module.exports = {
   cloudinary,
   uploadProfile,
   uploadVerification,
   uploadPackage,
+  uploadRefund,
 };
