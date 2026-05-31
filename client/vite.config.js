@@ -12,8 +12,10 @@ export default defineConfig({
     }
   },
   preview: {
-    port: process.env.PORT || 4173,
-    host: true,
-    allowedHosts: 'all'
+    host: '0.0.0.0',
+    allowedHosts: [
+      'disciplined-gratitude-production-0812.up.railway.app',
+      'localhost'
+    ]
   }
 })
